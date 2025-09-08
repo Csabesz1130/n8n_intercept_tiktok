@@ -1,25 +1,81 @@
-<form id="ideaForm"
-      method="post"
-      action="https://YOUR-N8N-HOST/webhook/ui-save"
-      target="hidden_iframe">
-  <label>Email(ek)</label>
-  <input type="email" name="emails" multiple required placeholder="te@pelda.hu, masik@pelda.hu" />
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TikTok jelentés – beállítás</title>
+  <style>
+    :root{--mx:680px}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:var(--mx);margin:40px auto;padding:0 16px;background:#fafafa;color:#111}
+    h1{margin:0 0 8px}
+    p.lead{margin:0 0 18px;color:#555}
+    label{display:block;margin:14px 0 6px;font-weight:600}
+    input,select,textarea{width:100%;padding:10px;border:1px solid #d0d0d0;border-radius:10px;background:#fff}
+    textarea{resize:vertical}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+    button{padding:12px 16px;border:0;border-radius:10px;cursor:pointer}
+    .primary{background:#111;color:#fff}
+    .muted{background:#eaeaea}
+    small{color:#666}
+    #msg{margin-top:10px;color:#0a0}
+  </style>
+</head>
+<body>
+  <h1>Heti TikTok jelentés – beállítás</h1>
+  <p class="lead">Add meg az e-mail(eke)t és a témákat/hashtageket. A beállításokat az n8n fogadja.</p>
 
-  <label>Régió</label>
-  <select name="region">
-    <option value="HU" selected>Magyarország</option>
-    <option value="EU">EU</option>
-    <option value="GLOBAL">Globális</option>
-  </select>
+  <form id="configForm"
+        method="post"
+        action="https://padavan1129.app.n8n.cloud/webhook/ui-save"
+        target="hidden_iframe"
+        onsubmit="document.getElementById('msg').textContent='Mentés folyamatban…';">
 
-  <label>Témák / hashtagek</label>
-  <textarea name="topics" rows="3" placeholder="#politika #budapest"></textarea>
+    <label for="user_id">Felhasználó azonosító (user_id)</label>
+    <input id="user_id" name="user_id" value="demo-user-1" required />
 
-  <input type="hidden" name="user_id" value="demo-user-1" />
-  <input type="hidden" name="run_now" value="0" />
+    <div class="row">
+      <div>
+        <label for="region">Régió</label>
+        <select id="region" name="region">
+          <option value="HU" selected>Magyarország (HU)</option>
+          <option value="EU">EU</option>
+          <option value="GLOBAL">Globális</option>
+        </select>
+      </div>
+      <div>
+        <label for="run_now_select">Futtatás most?</label>
+        <select id="run_now_select" onchange="document.getElementById('run_now').value=this.value">
+          <option value="0" selected>Csak mentsd</option>
+          <option value="1">Ments & azonnal futtasd</option>
+        </select>
+      </div>
+    </div>
 
-  <button type="submit">Mentés</button>
-  <button type="submit" onclick="this.form.run_now.value='1'">Mentés & Futtatás</button>
+    <label for="emails">Címzettek e-mailjei (vessző/space elválasztva)</label>
+    <input id="emails" name="emails" placeholder="press@party.hu, te@agency.com" required />
 
-  <iframe name="hidden_iframe" style="display:none"></iframe>
-</form>
+    <label for="topics">Témák / hashtagek</label>
+    <textarea id="topics" name="topics" rows="3" placeholder="#politika #budapest kampány"></textarea>
+    <small>A backend kisbetűsít, pótolja a hiányzó <code>#</code>-t, duplikátumot töröl.</small>
+
+    <input type="hidden" id="run_now" name="run_now" value="0" />
+
+    <div class="actions">
+      <button type="submit" class="primary">Mentés</button>
+      <button type="submit" class="muted" onclick="document.getElementById('run_now').value='1'">Mentés & Futtatás</button>
+    </div>
+
+    <iframe name="hidden_iframe" style="display:none"></iframe>
+  </form>
+
+  <p id="msg"></p>
+
+  <script>
+    // egyszerű visszajelzés a rejtett iframes POST után
+    window.addEventListener('message', () => {
+      document.getElementById('msg').textContent = 'Elmentve! Ha a futtatás be volt kapcsolva, a riport elindult.';
+    });
+  </script>
+</body>
+</html>
