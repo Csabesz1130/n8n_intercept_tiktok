@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>TikTok jelentés – beállítás</title>
+  <title>Heti TikTok jelentés – beállítás</title>
   <style>
-    :root{--mx:680px}
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:var(--mx);margin:40px auto;padding:0 16px;background:#fafafa;color:#111}
+    :root{--w:760px}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:var(--w);margin:40px auto;padding:0 16px;background:#fafafa;color:#111}
     h1{margin:0 0 8px}
-    p.lead{margin:0 0 18px;color:#555}
+    .lead{margin:0 0 18px;color:#555}
     label{display:block;margin:14px 0 6px;font-weight:600}
-    input,select,textarea{width:100%;padding:10px;border:1px solid #d0d0d0;border-radius:10px;background:#fff}
+    input,select,textarea{width:100%;padding:12px;border:1px solid #d0d0d0;border-radius:10px;background:#fff}
     textarea{resize:vertical}
     .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     .actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
@@ -18,18 +18,18 @@
     .primary{background:#111;color:#fff}
     .muted{background:#eaeaea}
     small{color:#666}
-    #msg{margin-top:10px;color:#0a0}
+    #msg{margin-top:12px}
+    .ok{color:#0a0}.pending{color:#0a58ca}.err{color:#c00}
   </style>
 </head>
 <body>
   <h1>Heti TikTok jelentés – beállítás</h1>
-  <p class="lead">Add meg az e-mail(eke)t és a témákat/hashtageket. A beállításokat az n8n fogadja.</p>
+  <p class="lead">Add meg az e-mail(ek)et és a témákat/hashtageket. A beállításokat az n8n fogadja.</p>
 
   <form id="configForm"
         method="post"
         action="https://padavan1129.app.n8n.cloud/webhook/ui-save"
-        target="hidden_iframe"
-        onsubmit="document.getElementById('msg').textContent='Mentés folyamatban…';">
+        target="hidden_iframe">
 
     <label for="user_id">Felhasználó azonosító (user_id)</label>
     <input id="user_id" name="user_id" value="demo-user-1" required />
@@ -44,10 +44,10 @@
         </select>
       </div>
       <div>
-        <label for="run_now_select">Futtatás most?</label>
-        <select id="run_now_select" onchange="document.getElementById('run_now').value=this.value">
-          <option value="0" selected>Csak mentsd</option>
-          <option value="1">Ments & azonnal futtasd</option>
+        <label for="run_now_sel">Futtatás most?</label>
+        <select id="run_now_sel">
+          <option value="0">Csak mentsd</option>
+          <option value="1" selected>Men ts & azonnal futtasd</option>
         </select>
       </div>
     </div>
@@ -56,26 +56,54 @@
     <input id="emails" name="emails" placeholder="press@party.hu, te@agency.com" required />
 
     <label for="topics">Témák / hashtagek</label>
-    <textarea id="topics" name="topics" rows="3" placeholder="#politika #budapest kampány"></textarea>
-    <small>A backend kisbetűsít, pótolja a hiányzó <code>#</code>-t, duplikátumot töröl.</small>
+    <textarea id="topics" name="topics" rows="3" placeholder="#budapest #politika kampány"></textarea>
+    <small>A backend kisbetűsít, pótolja a hiányzó <code>#</code>-t, duplikátumokat töröl.</small>
 
-    <input type="hidden" id="run_now" name="run_now" value="0" />
+    <input type="hidden" id="run_now" name="run_now" value="1" />
 
     <div class="actions">
       <button type="submit" class="primary">Mentés</button>
-      <button type="submit" class="muted" onclick="document.getElementById('run_now').value='1'">Mentés & Futtatás</button>
+      <button type="submit" class="muted" id="saveRun">Mentés & Futtatás</button>
     </div>
 
-    <iframe name="hidden_iframe" style="display:none"></iframe>
+    <iframe name="hidden_iframe" id="hidden_iframe" style="display:none"></iframe>
   </form>
 
   <p id="msg"></p>
 
   <script>
-    // egyszerű visszajelzés a rejtett iframes POST után
-    window.addEventListener('message', () => {
-      document.getElementById('msg').textContent = 'Elmentve! Ha a futtatás be volt kapcsolva, a riport elindult.';
+    const form = document.getElementById('configForm');
+    const iframe = document.getElementById('hidden_iframe');
+    const msg = document.getElementById('msg');
+    const runHidden = document.getElementById('run_now');
+    const runSelect = document.getElementById('run_now_sel');
+    const saveRunBtn = document.getElementById('saveRun');
+
+    // keep hidden run_now in sync with select
+    runSelect.addEventListener('change', () => runHidden.value = runSelect.value);
+    // ensure second button always sets run_now=1
+    saveRunBtn.addEventListener('click', () => { runHidden.value = '1'; });
+
+    form.addEventListener('submit', () => {
+      msg.className = 'pending';
+      msg.textContent = 'Mentés folyamatban…';
+      // after submit, reset run_now to select value to avoid sticky state
+      setTimeout(() => { runHidden.value = runSelect.value; }, 0);
     });
+
+    // when n8n responds, iframe loads → show success
+    iframe.addEventListener('load', () => {
+      msg.className = 'ok';
+      msg.textContent = 'Elmentve! Ha a futtatás be volt kapcsolva, a riport elindult.';
+    });
+
+    // Basic guard: warn if someone accidentally uses a test URL
+    if (form.action.includes('/webhook-test/')) {
+      msg.className = 'err';
+      msg.textContent = 'Figyelem: a form most a TEST webhookra mutat. Cseréld Production URL-re: /webhook/ui-save';
+    }
   </script>
+
+  <noscript>A beküldés működik JavaScript nélkül is, de nem kapsz vizuális visszajelzést.</noscript>
 </body>
 </html>
