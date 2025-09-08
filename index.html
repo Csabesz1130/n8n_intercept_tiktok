@@ -1,51 +1,25 @@
-<!doctype html>
-<html lang="hu">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Tartalomötlet beküldése</title>
-  <link rel="stylesheet" href="/style.css" />
-</head>
-<body>
-  <main class="container">
-    <h1>TikTok tartalomötlet-kérő</h1>
-    <p>Válassz témát/hashtaget, add meg az email címed, és küldjük a heti PDF jelentést.</p>
+<form id="ideaForm"
+      method="post"
+      action="https://YOUR-N8N-HOST/webhook/ui-save"
+      target="hidden_iframe">
+  <label>Email(ek)</label>
+  <input type="email" name="emails" multiple required placeholder="te@pelda.hu, masik@pelda.hu" />
 
-    <form id="ideaForm">
-      <label>
-        Email
-        <input type="email" name="email" required placeholder="te@pelda.hu" />
-      </label>
+  <label>Régió</label>
+  <select name="region">
+    <option value="HU" selected>Magyarország</option>
+    <option value="EU">EU</option>
+    <option value="GLOBAL">Globális</option>
+  </select>
 
-      <label>
-        Régió
-        <select name="region">
-          <option value="HU" selected>Magyarország</option>
-          <option value="EU">EU</option>
-          <option value="GLOBAL">Globális</option>
-        </select>
-      </label>
+  <label>Témák / hashtagek</label>
+  <textarea name="topics" rows="3" placeholder="#politika #budapest"></textarea>
 
-      <label>
-        Hashtag(ek) (vesszővel vagy szóközzel elválasztva)
-        <input type="text" name="hashtags" placeholder="#hungary, #politika, #budapest" />
-      </label>
+  <input type="hidden" name="user_id" value="demo-user-1" />
+  <input type="hidden" name="run_now" value="0" />
 
-      <label>
-        TikTok felhasználónév (opcionális)
-        <input type="text" name="tiktok_username" placeholder="pl.: @apifyoffice" />
-      </label>
+  <button type="submit">Mentés</button>
+  <button type="submit" onclick="this.form.run_now.value='1'">Mentés & Futtatás</button>
 
-      <label class="checkbox">
-        <input type="checkbox" name="weekly" value="1" checked />
-        Kérjek heti automatikus jelentést (hétfő 9:00)
-      </label>
-
-      <button type="submit">Küldés</button>
-      <p id="msg" aria-live="polite"></p>
-    </form>
-  </main>
-
-  <script src="/script.js"></script>
-</body>
-</html>
+  <iframe name="hidden_iframe" style="display:none"></iframe>
+</form>
