@@ -18,21 +18,25 @@
     .primary{background:#111;color:#fff}
     .muted{background:#eaeaea}
     small{color:#666}
-    #msg{margin-top:12px}
+    #msg{margin-top:12px;min-height:1.2em}
     .ok{color:#0a0}.pending{color:#0a58ca}.err{color:#c00}
+    .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
   </style>
 </head>
 <body>
   <h1>Heti TikTok jelentés – beállítás</h1>
   <p class="lead">Add meg az e-mail(ek)et és a témákat/hashtageket. A beállításokat az n8n fogadja.</p>
 
+  <!--
+    A form továbbra is POST-olja az adatokat – JS nélkül is működik.
+    JS esetén elfogjuk a submitot és TISZTA JSON-t küldünk az n8n webhookra.
+  -->
   <form id="configForm"
         method="post"
         action="https://padavan1129.app.n8n.cloud/webhook/ui-save"
-        target="hidden_iframe">
-
+        novalidate>
     <label for="user_id">Felhasználó azonosító (user_id)</label>
-    <input id="user_id" name="user_id" value="demo-user-1" required />
+    <input id="user_id" name="user_id" value="demo-user-1" required autocomplete="username" />
 
     <div class="row">
       <div>
@@ -47,63 +51,139 @@
         <label for="run_now_sel">Futtatás most?</label>
         <select id="run_now_sel">
           <option value="0">Csak mentsd</option>
-          <option value="1" selected>Men ts & azonnal futtasd</option>
+          <option value="1" selected>Mentés & azonnal futtasd</option>
         </select>
       </div>
     </div>
 
     <label for="emails">Címzettek e-mailjei (vessző/space elválasztva)</label>
-    <input id="emails" name="emails" placeholder="press@party.hu, te@agency.com" required />
+    <input id="emails" name="emails" placeholder="press@party.hu, te@agency.com" required autocomplete="email" />
 
     <label for="topics">Témák / hashtagek</label>
     <textarea id="topics" name="topics" rows="3" placeholder="#budapest #politika kampány"></textarea>
     <small>A backend kisbetűsít, pótolja a hiányzó <code>#</code>-t, duplikátumokat töröl.</small>
 
+    <!-- a választott opció tükrözése backend felé -->
     <input type="hidden" id="run_now" name="run_now" value="1" />
 
     <div class="actions">
       <button type="submit" class="primary">Mentés</button>
       <button type="submit" class="muted" id="saveRun">Mentés & Futtatás</button>
     </div>
-
-    <iframe name="hidden_iframe" id="hidden_iframe" style="display:none"></iframe>
   </form>
 
-  <p id="msg"></p>
+  <p id="msg" role="status" aria-live="polite"></p>
 
   <script>
-    const form = document.getElementById('configForm');
-    const iframe = document.getElementById('hidden_iframe');
-    const msg = document.getElementById('msg');
-    const runHidden = document.getElementById('run_now');
-    const runSelect = document.getElementById('run_now_sel');
-    const saveRunBtn = document.getElementById('saveRun');
+    (function () {
+      const form      = document.getElementById('configForm');
+      const msg       = document.getElementById('msg');
+      const runHidden = document.getElementById('run_now');
+      const runSelect = document.getElementById('run_now_sel');
+      const saveRun   = document.getElementById('saveRun');
 
-    // keep hidden run_now in sync with select
-    runSelect.addEventListener('change', () => runHidden.value = runSelect.value);
-    // ensure second button always sets run_now=1
-    saveRunBtn.addEventListener('click', () => { runHidden.value = '1'; });
+      const $ = (id) => document.getElementById(id);
+      const setMsg = (cls, text) => { msg.className = cls; msg.textContent = text; };
 
-    form.addEventListener('submit', () => {
-      msg.className = 'pending';
-      msg.textContent = 'Mentés folyamatban…';
-      // after submit, reset run_now to select value to avoid sticky state
-      setTimeout(() => { runHidden.value = runSelect.value; }, 0);
-    });
+      // keep hidden field in sync with selector
+      runSelect.addEventListener('change', () => { runHidden.value = runSelect.value; });
+      // force run_now=1 for "Mentés & Futtatás"
+      saveRun.addEventListener('click', () => { runHidden.value = '1'; });
 
-    // when n8n responds, iframe loads → show success
-    iframe.addEventListener('load', () => {
-      msg.className = 'ok';
-      msg.textContent = 'Elmentve! Ha a futtatás be volt kapcsolva, a riport elindult.';
-    });
+      // ---------- Normalizálás + ellenőrzés ----------
+      const uniq = (arr) => [...new Set(arr)];
+      const validEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 
-    // Basic guard: warn if someone accidentally uses a test URL
-    if (form.action.includes('/webhook-test/')) {
-      msg.className = 'err';
-      msg.textContent = 'Figyelem: a form most a TEST webhookra mutat. Cseréld Production URL-re: /webhook/ui-save';
-    }
+      function splitEmails(s) {
+        return uniq(
+          (s || '')
+            .split(/[,\s;]+/)
+            .map(v => v.trim().toLowerCase())
+            .filter(v => v && validEmail(v))
+        );
+      }
+
+      function splitTopics(s) {
+        return uniq(
+          (s || '')
+            .split(/[,\s]+/)
+            .map(v => v.trim().toLowerCase())
+            .filter(Boolean)
+            .map(t => (t.startsWith('#') ? t : '#' + t))
+        );
+      }
+
+      const nowISO = () => new Date().toISOString();
+
+      function buildPayload() {
+        const user_id = $('user_id').value.trim();
+        const region  = $('region').value;
+        const run_now = runSelect.value === '1';
+
+        const emails = splitEmails($('emails').value);
+        const topics = splitTopics($('topics').value);
+
+        if (!user_id) throw new Error('Hiányzik a user_id.');
+        if (!emails.length) throw new Error('Adj meg legalább egy érvényes e-mail címet.');
+        if (!topics.length) throw new Error('Adj meg legalább egy témát/hashtaget.');
+
+        // Előre elkészített tömbök a Supabase UPSERT-hez
+        const ts = nowISO();
+        const recipientsBody = emails.map(email => ({
+          user_id, email, region, created_at: ts, updated_at: ts
+        }));
+        const topicsBody = topics.map(topic => ({
+          user_id, topic, region, created_at: ts, updated_at: ts
+        }));
+
+        return { user_id, region, run_now, emails, topics, recipientsBody, topicsBody };
+      }
+
+      // ---------- Submit: tiszta JSON küldése az n8n webhookra ----------
+      form.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        setMsg('pending', 'Mentés folyamatban…');
+
+        // ne ragadjon be a "1"
+        setTimeout(() => { runHidden.value = runSelect.value; }, 0);
+
+        let payload;
+        try {
+          payload = buildPayload();
+        } catch (e) {
+          setMsg('err', e.message);
+          return;
+        }
+
+        try {
+          const resp = await fetch(form.action, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            keepalive: true,
+          });
+
+          if (resp.ok) {
+            setMsg('ok', 'Elmentve! Ha a futtatás be volt kapcsolva, a riport elindult.');
+          } else {
+            const text = await resp.text();
+            setMsg('err', `Hiba (${resp.status}): ${text || 'sikertelen kérés'}`);
+          }
+        } catch (err) {
+          setMsg('err', `Hálózati hiba: ${err.message}`);
+        }
+      });
+
+      // Biztonsági figyelmeztetés: véletlenül ne a TEST webhookot használd
+      if (form.action.includes('/webhook-test/')) {
+        setMsg('err', 'Figyelem: a form most a TEST webhookra mutat. Állítsd át: /webhook/ui-save');
+      }
+    })();
   </script>
 
-  <noscript>A beküldés működik JavaScript nélkül is, de nem kapsz vizuális visszajelzést.</noscript>
+  <noscript>
+    A beküldés JS nélkül is működik, de a JSON-normalizálás nem történik meg.
+    Ha lehet, engedélyezd a JavaScriptet a biztos feldolgozáshoz.
+  </noscript>
 </body>
 </html>
